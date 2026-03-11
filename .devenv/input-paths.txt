@@ -1,5 +1,3 @@
-/home/shivang/.config/nixpkgs/overlays
-/home/shivang/.config/nixpkgs/overlays.nix
 /home/shivang/shivang/projs/charMeD/.devenv/bootstrap/bootstrapLib.nix
 /home/shivang/shivang/projs/charMeD/.devenv/bootstrap/default.nix
 /home/shivang/shivang/projs/charMeD/.devenv/bootstrap/resolve-lock.nix
