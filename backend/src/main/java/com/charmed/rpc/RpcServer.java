@@ -4,7 +4,6 @@ import com.charmed.document.Document;
 import com.charmed.document.DocumentManager;
 import com.charmed.event.DocumentChangedEvent;
 import com.charmed.event.EventBus;
-import com.charmed.event.ModeChangedEvent;
 import com.charmed.visitor.WordCountVisitor;
 import com.google.gson.*;
 
@@ -36,7 +35,6 @@ public class RpcServer {
 
         // Subscribe to events → send notifications
         eventBus.subscribe(DocumentChangedEvent.class, this::onDocumentChanged);
-        eventBus.subscribe(ModeChangedEvent.class, this::onModeChanged);
     }
 
     public void registerHandler(String prefix, RpcHandler handler) {
@@ -139,7 +137,6 @@ public class RpcServer {
             cursor.addProperty("line", doc.getCursor().line());
             cursor.addProperty("column", doc.getCursor().column());
             params.add("cursor", cursor);
-            params.addProperty("mode", "NORMAL");
             params.addProperty("dirty", doc.isDirty());
 
             try { sendNotification("ui/refresh", params); }
@@ -147,30 +144,6 @@ public class RpcServer {
         });
     }
 
-    private void onModeChanged(ModeChangedEvent event) {
-        Thread.startVirtualThread(() -> {
-            Document doc = documentManager.getActiveDocument();
-            JsonObject params = new JsonObject();
-            params.addProperty("mode", event.modeName());
-            if (doc != null) {
-                params.addProperty("filePath", doc.getFilePath() != null
-                        ? doc.getFilePath().toString() : null);
-                params.addProperty("dirty", doc.isDirty());
-
-                WordCountVisitor wc = new WordCountVisitor();
-                doc.getAst().accept(wc);
-                params.addProperty("wordCount", wc.getCount());
-                params.addProperty("lineCount", doc.lineCount());
-
-                JsonObject cursor = new JsonObject();
-                cursor.addProperty("line", doc.getCursor().line());
-                cursor.addProperty("column", doc.getCursor().column());
-                params.add("cursor", cursor);
-            }
-            try { sendNotification("ui/statusBar", params); }
-            catch (IOException e) { System.err.println("Failed to send notification: " + e.getMessage()); }
-        });
-    }
 
     // --- Content-Length framed I/O ---
 

@@ -7,7 +7,6 @@ import com.charmed.document.Document;
 
 /**
  * Insert mode — text input. Characters inserted at cursor position.
- * Esc returns to Normal mode.
  */
 public final class InsertMode implements EditorMode {
 
@@ -19,10 +18,6 @@ public final class InsertMode implements EditorMode {
         CursorPosition cursor = doc.getCursor();
 
         return switch (key) {
-            case "esc", "escape" -> {
-                editor.transitionTo(new NormalMode());
-                yield HandleResult.modeChange("normal");
-            }
             case "enter" -> {
                 var cmd = new InsertTextCommand(doc, cursor, "\n");
                 editor.getHistory().execute(cmd);
