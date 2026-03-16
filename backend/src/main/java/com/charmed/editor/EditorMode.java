@@ -6,7 +6,7 @@ package com.charmed.editor;
  *
  * <p>Sealed with exactly 3 permits enables exhaustive pattern matching switch.</p>
  */
-public sealed interface EditorMode permits NormalMode, InsertMode, CommandMode {
+public sealed interface EditorMode permits InsertMode {
 
     /** Handle a key press in this mode. */
     HandleResult handleKey(Editor editor, String key);

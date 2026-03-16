@@ -7,7 +7,6 @@ import com.charmed.document.Document;
 import com.charmed.document.DocumentManager;
 import com.charmed.event.CursorMovedEvent;
 import com.charmed.event.EventBus;
-import com.charmed.event.ModeChangedEvent;
 
 /**
  * Editor context — holds current mode, delegates key handling to it.
@@ -24,7 +23,7 @@ public class Editor {
         this.documentManager = documentManager;
         this.eventBus = eventBus;
         this.history = new CommandHistory<>();
-        this.currentMode = new NormalMode();
+        this.currentMode = new InsertMode();
     }
 
     /** Delegate key handling to the current mode. */
@@ -34,8 +33,7 @@ public class Editor {
 
     /** Transition to a new editor mode. Publishes ModeChangedEvent. */
     public void transitionTo(EditorMode newMode) {
-        this.currentMode = newMode;
-        eventBus.publish(new ModeChangedEvent(newMode.modeName()));
+        // No-op: Mode is now locked to InsertMode
     }
 
     /** Publish a cursor movement event. */
