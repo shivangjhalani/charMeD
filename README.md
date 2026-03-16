@@ -11,18 +11,12 @@
 
 ## Prerequisites
 
-The project is configured with [devenv](https://devenv.sh/) for a reproducible development environment.
-
-- **Recommended**: [Nix](https://nixos.org/download.html) and [devenv](https://devenv.sh/getting-started/).
-- **Manual Setup**:
-    - Java 21+
-    - Go 1.22+
-    - Make
-    - Gradle 8.x (wrapper provided)
+- Java 21+
+- Go 1.22+
+- Make
+- Gradle 8.x (wrapper provided)
 
 ## Getting Started
-
-### Using Devenv (Recommended)
 
 1. **Clone the repository**:
    ```bash
@@ -30,21 +24,9 @@ The project is configured with [devenv](https://devenv.sh/) for a reproducible d
    cd charMeD
    ```
 
-2. **Enter the development shell**:
-   ```bash
-   devenv shell
-   ```
-   This will automatically provide Java, Go, and other dependencies.
+2. Ensure you have Java 21+ and Go 1.22+ installed.
 
 3. **Run the application**:
-   ```bash
-   make run
-   ```
-
-### Manual Setup
-
-1. Ensure you have Java 21+ and Go 1.22+ installed.
-2. Build and run:
    ```bash
    make run
    ```
@@ -84,6 +66,5 @@ charMeD/
 ├── backend/        # Java backend (Business Logic, OOP Showcase)
 ├── frontend/       # Go frontend (TUI, Interaction)
 ├── docs/           # Documentation
-├── Makefile        # Build scripts
-└── devenv.nix      # Nix environment config
+└── Makefile        # Build scripts
 ```

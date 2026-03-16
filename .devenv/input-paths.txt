@@ -1,7 +1,0 @@
-/home/shivang/shivang/projs/charMeD/.devenv/bootstrap/bootstrapLib.nix
-/home/shivang/shivang/projs/charMeD/.devenv/bootstrap/default.nix
-/home/shivang/shivang/projs/charMeD/.devenv/bootstrap/resolve-lock.nix
-/home/shivang/shivang/projs/charMeD/devenv.local.nix
-/home/shivang/shivang/projs/charMeD/devenv.lock
-/home/shivang/shivang/projs/charMeD/devenv.nix
-/home/shivang/shivang/projs/charMeD/.env
