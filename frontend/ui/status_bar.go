@@ -9,7 +9,6 @@ import (
 
 // StatusBar shows mode, filename, cursor, word count, and dirty indicator.
 type StatusBar struct {
-	mode      string
 	filePath  string
 	cursor    CursorPos
 	wordCount int
@@ -21,9 +20,7 @@ type StatusBar struct {
 
 // NewStatusBar creates a new status bar.
 func NewStatusBar() StatusBar {
-	return StatusBar{
-		mode: "NORMAL",
-	}
+	return StatusBar{}
 }
 
 // SetWidth sets the status bar width.
@@ -32,9 +29,8 @@ func (s *StatusBar) SetWidth(w int) {
 }
 
 // Update updates the status bar state.
-func (s *StatusBar) Update(mode, filePath string, cursor CursorPos,
+func (s *StatusBar) Update(filePath string, cursor CursorPos,
 	wordCount, lineCount int, dirty bool) {
-	s.mode = mode
 	s.filePath = filePath
 	s.cursor = cursor
 	s.wordCount = wordCount
@@ -54,16 +50,6 @@ func (s *StatusBar) ClearMessage() {
 
 // View renders the status bar.
 func (s StatusBar) View() string {
-	// Mode indicator
-	modeStyle := statusModeStyle
-	switch strings.ToUpper(s.mode) {
-	case "INSERT":
-		modeStyle = statusInsertModeStyle
-	case "COMMAND":
-		modeStyle = statusCommandModeStyle
-	}
-	mode := modeStyle.Render(fmt.Sprintf(" %s ", strings.ToUpper(s.mode)))
-
 	// File path
 	file := s.filePath
 	if file == "" {
@@ -83,7 +69,7 @@ func (s StatusBar) View() string {
 		fmt.Sprintf(" %d words │ %d lines ", s.wordCount, s.lineCount))
 
 	// Message or gap
-	usedWidth := lipgloss.Width(mode) + lipgloss.Width(fileSection) +
+	usedWidth := lipgloss.Width(fileSection) +
 		lipgloss.Width(cursorSection) + lipgloss.Width(statsSection)
 	gapWidth := s.width - usedWidth
 	if gapWidth < 0 {
@@ -103,5 +89,5 @@ func (s StatusBar) View() string {
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top,
-		mode, fileSection, gap, cursorSection, statsSection)
+		fileSection, gap, cursorSection, statsSection)
 }

@@ -34,24 +34,6 @@ var (
 			Foreground(colorText).
 			Padding(0, 1)
 
-	statusModeStyle = lipgloss.NewStyle().
-			Background(colorBlue).
-			Foreground(colorBase).
-			Bold(true).
-			Padding(0, 1)
-
-	statusInsertModeStyle = lipgloss.NewStyle().
-			Background(colorGreen).
-			Foreground(colorBase).
-			Bold(true).
-			Padding(0, 1)
-
-	statusCommandModeStyle = lipgloss.NewStyle().
-			Background(colorPeach).
-			Foreground(colorBase).
-			Bold(true).
-			Padding(0, 1)
-
 	statusFileStyle = lipgloss.NewStyle().
 			Background(colorSurface1).
 			Foreground(colorSubtext1).

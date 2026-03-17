@@ -34,13 +34,12 @@ type Model struct {
 	commandPalette CommandPalette
 	fileTree       FileTree
 
-	width, height int
 	activePane    Pane
-	mode          string
 	filePath      string
 	ready         bool
 	quitting      bool
 	message       string
+	width, height int
 }
 
 // NewModel creates the root model.
@@ -53,7 +52,6 @@ func NewModel(client *rpc.Client) Model {
 		commandPalette: NewCommandPalette(),
 		fileTree:       NewFileTree(),
 		activePane:     PaneEditor,
-		mode:           "NORMAL",
 	}
 }
 
@@ -84,22 +82,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// INSERT mode: only esc exits, everything else goes to textarea
-		if m.mode == "INSERT" {
-			if msg.String() == "esc" {
-				m.mode = "NORMAL"
-				m.editorPane.textarea.Blur()
-				return m, nil
-			}
-			// Forward all other keys directly to editor
+		// Editor pane handling
+		if m.activePane == PaneEditor {
+			// Forward all keys directly to editor
 			cmd := m.editorPane.Update(msg)
 			cmds = append(cmds, cmd)
 			content := m.editorPane.textarea.Value()
 			cmds = append(cmds, m.previewPane.SetContent(content))
 			return m, tea.Batch(cmds...)
 		}
-
-		// --- NORMAL mode handling below ---
 
 		// Command palette intercepts when visible
 		if m.commandPalette.IsVisible() {
@@ -119,12 +110,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Global key handling (NORMAL mode)
+		// Global key handling
 		switch msg.String() {
-		case "i":
-			m.mode = "INSERT"
-			m.editorPane.textarea.Focus()
-			return m, nil
 		case "ctrl+b":
 			m.fileTree.Toggle()
 			m.recalcLayout()
@@ -133,11 +120,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.commandPalette.Show()
 			return m, nil
 		case "tab":
-			// Exit INSERT mode when switching panes
-			if m.mode == "INSERT" {
-				m.mode = "NORMAL"
-				m.editorPane.textarea.Blur()
-			}
 			if m.activePane == PaneEditor {
 				m.activePane = PanePreview
 			} else {
@@ -151,9 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// In NORMAL mode, only handle recognized navigation keys.
-		// Do NOT forward arbitrary keys to the textarea — OSC terminal
-		// responses leak in as fake keystrokes and appear as garbled text.
+		// Navigation handling for Preview
 		if m.activePane == PanePreview {
 			switch msg.String() {
 			case "j", "down", "k", "up", "pgup", "pgdown", "ctrl+u", "ctrl+d":
@@ -228,7 +208,7 @@ func (m Model) View() string {
 
 	// Status bar at bottom
 	m.statusBar.SetWidth(m.width)
-	m.statusBar.Update(m.mode, m.filePath,
+	m.statusBar.Update(m.filePath,
 		m.editorPane.cursor,
 		0, len(m.editorPane.lines),
 		false)
@@ -337,17 +317,13 @@ func (m *Model) handleNotification(notif rpc.NotificationMsg) {
 		var params struct {
 			Content string    `json:"content"`
 			Cursor  CursorPos `json:"cursor"`
-			Mode    string    `json:"mode"`
-			Dirty   bool      `json:"dirty"`
 		}
 		json.Unmarshal(notif.Params, &params)
 		m.editorPane.SetContent(params.Content)
 		m.editorPane.cursor = params.Cursor
-		m.mode = params.Mode
 
-	case "ui/statusBar":
+	case "ui/statusBar" :
 		var params struct {
-			Mode      string    `json:"mode"`
 			FilePath  string    `json:"filePath"`
 			Dirty     bool      `json:"dirty"`
 			WordCount int       `json:"wordCount"`
@@ -355,8 +331,7 @@ func (m *Model) handleNotification(notif rpc.NotificationMsg) {
 			Cursor    CursorPos `json:"cursor"`
 		}
 		json.Unmarshal(notif.Params, &params)
-		m.mode = params.Mode
-		m.statusBar.Update(params.Mode, params.FilePath,
+		m.statusBar.Update(params.FilePath,
 			params.Cursor, params.WordCount, params.LineCount, params.Dirty)
 
 	case "ui/message":

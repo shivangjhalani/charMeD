@@ -31,7 +31,7 @@ public class Editor {
         return currentMode.handleKey(this, key);
     }
 
-    /** Transition to a new editor mode. Publishes ModeChangedEvent. */
+    /** Transition to a new editor mode. (Currently locked to InsertMode) */
     public void transitionTo(EditorMode newMode) {
         // No-op: Mode is now locked to InsertMode
     }

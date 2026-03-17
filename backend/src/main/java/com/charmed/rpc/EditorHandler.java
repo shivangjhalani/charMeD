@@ -21,7 +21,6 @@ public class EditorHandler implements RpcHandler {
     public RpcResponse handle(String method, JsonObject params) {
         try {
             return switch (method) {
-                case "editor/changeMode" -> handleChangeMode(params);
                 case "editor/moveCursor" -> handleMoveCursor(params);
                 case "editor/executeCommand" -> handleExecuteCommand(params);
                 default -> RpcResponse.error(RpcError.methodNotFound(method));
@@ -29,24 +28,6 @@ public class EditorHandler implements RpcHandler {
         } catch (Exception e) {
             return RpcResponse.error(RpcError.internalError(e.getMessage()));
         }
-    }
-
-    private RpcResponse handleChangeMode(JsonObject params) {
-        String mode = params.get("mode").getAsString();
-        String previousMode = editor.currentMode().modeName();
-
-        // Simulate pressing the mode-change key
-        HandleResult result = switch (mode) {
-            case "insert" -> editor.processKey("i");
-            case "command" -> editor.processKey(":");
-            case "normal" -> editor.processKey("esc");
-            default -> HandleResult.none();
-        };
-
-        JsonObject res = new JsonObject();
-        res.addProperty("previousMode", previousMode);
-        res.addProperty("currentMode", editor.currentMode().modeName().toLowerCase());
-        return RpcResponse.success(res);
     }
 
     private RpcResponse handleMoveCursor(JsonObject params) {

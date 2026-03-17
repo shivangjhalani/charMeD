@@ -31,8 +31,8 @@ func NewEditorPane() EditorPane {
 	ta.CharLimit = 0 // no limit
 	ta.SetWidth(40)
 	ta.SetHeight(20)
-	// Do NOT call ta.Focus() here — textarea must stay blurred in NORMAL mode.
-	// Focus is managed exclusively by INSERT/NORMAL mode transitions in model.go.
+	ta.Focus()
+	// Focus is managed by the active pane state in model.go.
 
 	return EditorPane{
 		textarea: ta,
