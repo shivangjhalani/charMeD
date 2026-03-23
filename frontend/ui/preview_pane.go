@@ -41,7 +41,7 @@ func (p *PreviewPane) SetSize(w, h int) {
 	p.width = w
 	p.height = h
 	p.viewport.Width = w - 4   // border + padding
-	p.viewport.Height = h - 4  // border + padding + header
+	p.viewport.Height = h - 3  // border + padding + header
 }
 
 // SetContent caches raw markdown and triggers an async render.

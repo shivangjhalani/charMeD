@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -208,9 +209,14 @@ func (m Model) View() string {
 
 	// Status bar at bottom
 	m.statusBar.SetWidth(m.width)
+	cursorLine := m.editorPane.textarea.Line()
+	cursorCol := m.editorPane.textarea.LineInfo().ColumnOffset
+	lineCount := m.editorPane.textarea.LineCount()
+	content := m.editorPane.textarea.Value()
+	wordCount := countWords(content)
 	m.statusBar.Update(m.filePath,
-		m.editorPane.cursor,
-		0, len(m.editorPane.lines),
+		CursorPos{Line: cursorLine, Column: cursorCol},
+		wordCount, lineCount,
 		false)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
@@ -309,6 +315,10 @@ func readFile(path string) ([]byte, error) {
 	return func() ([]byte, error) {
 		return nil, fmt.Errorf("not implemented without backend")
 	}()
+}
+
+func countWords(s string) int {
+	return len(strings.Fields(s))
 }
 
 func (m *Model) handleNotification(notif rpc.NotificationMsg) {
