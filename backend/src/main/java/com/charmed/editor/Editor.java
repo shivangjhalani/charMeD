@@ -1,7 +1,5 @@
 package com.charmed.editor;
 
-import com.charmed.command.CommandHistory;
-import com.charmed.command.EditorCommand;
 import com.charmed.document.CursorPosition;
 import com.charmed.document.Document;
 import com.charmed.document.DocumentManager;
@@ -10,19 +8,17 @@ import com.charmed.event.EventBus;
 
 /**
  * Editor context — holds current mode, delegates key handling to it.
- * State pattern context class. Manages Document, CommandHistory, and EventBus.
+ * Manages Document and EventBus. Provides direct text mutation methods.
  */
 public class Editor {
 
     private EditorMode currentMode;
     private final DocumentManager documentManager;
-    private final CommandHistory<EditorCommand> history;
     private final EventBus eventBus;
 
     public Editor(DocumentManager documentManager, EventBus eventBus) {
         this.documentManager = documentManager;
         this.eventBus = eventBus;
-        this.history = new CommandHistory<>();
         this.currentMode = new InsertMode();
     }
 
@@ -34,6 +30,21 @@ public class Editor {
     /** Transition to a new editor mode. (Currently locked to InsertMode) */
     public void transitionTo(EditorMode newMode) {
         // No-op: Mode is now locked to InsertMode
+    }
+
+    /** Insert text at the given position and reparse the document. */
+    public void insertText(CursorPosition position, String text) {
+        Document doc = getDocument();
+        doc.insertText(position, text);
+        documentManager.reparse();
+    }
+
+    /** Delete text in the given range and reparse the document. */
+    public String deleteText(CursorPosition start, CursorPosition end) {
+        Document doc = getDocument();
+        String deleted = doc.deleteRange(start, end);
+        documentManager.reparse();
+        return deleted;
     }
 
     /** Publish a cursor movement event. */
@@ -50,8 +61,6 @@ public class Editor {
     }
 
     public DocumentManager getDocumentManager() { return documentManager; }
-
-    public CommandHistory<EditorCommand> getHistory() { return history; }
 
     public EventBus getEventBus() { return eventBus; }
 }

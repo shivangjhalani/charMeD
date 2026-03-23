@@ -37,8 +37,6 @@ public class DocumentHandler implements RpcHandler {
                 case "document/new"        -> handleNew(params);
                 case "document/save"       -> handleSave(params);
                 case "document/edit"       -> handleEdit(params);
-                case "document/undo"       -> handleUndo(params);
-                case "document/redo"       -> handleRedo(params);
                 case "document/search"     -> handleSearch(params);
                 case "document/getContent" -> handleGetContent(params);
                 case "document/export"     -> handleExport(params);
@@ -90,22 +88,17 @@ public class DocumentHandler implements RpcHandler {
 
     private RpcResponse handleEdit(JsonObject params) {
         String action = params.get("action").getAsString();
-        // Forward to editor's key handling for insert-mode edits
-        // The editor handles command creation, undo stack, and reparse
         Document doc = documentManager.getActiveDocument();
         if (doc == null) {
             return RpcResponse.error(RpcError.internalError("No active document"));
         }
 
-        // For direct edits via RPC, we handle them as text operations
         if ("insert".equals(action)) {
             String text = params.get("text").getAsString();
             JsonObject posObj = params.getAsJsonObject("position");
             var pos = new com.charmed.document.CursorPosition(
                     posObj.get("line").getAsInt(), posObj.get("column").getAsInt());
-            var cmd = new com.charmed.command.InsertTextCommand(doc, pos, text);
-            editor.getHistory().execute(cmd);
-            documentManager.reparse();
+            editor.insertText(pos, text);
 
             String[] insertedLines = text.split("\n", -1);
             int newLine = pos.line() + insertedLines.length - 1;
@@ -130,9 +123,7 @@ public class DocumentHandler implements RpcHandler {
                     startObj.get("line").getAsInt(), startObj.get("column").getAsInt());
             var end = new com.charmed.document.CursorPosition(
                     endObj.get("line").getAsInt(), endObj.get("column").getAsInt());
-            var cmd = new com.charmed.command.DeleteTextCommand(doc, start, end);
-            editor.getHistory().execute(cmd);
-            documentManager.reparse();
+            editor.deleteText(start, end);
 
             JsonObject result = new JsonObject();
             result.addProperty("applied", true);
@@ -147,9 +138,7 @@ public class DocumentHandler implements RpcHandler {
             JsonObject posObj = params.getAsJsonObject("position");
             var pos = new com.charmed.document.CursorPosition(
                     posObj.get("line").getAsInt(), posObj.get("column").getAsInt());
-            var cmd = new com.charmed.command.InsertTextCommand(doc, pos, "\n");
-            editor.getHistory().execute(cmd);
-            documentManager.reparse();
+            editor.insertText(pos, "\n");
 
             JsonObject result = new JsonObject();
             result.addProperty("applied", true);
@@ -161,46 +150,6 @@ public class DocumentHandler implements RpcHandler {
         }
 
         return RpcResponse.error(RpcError.invalidParams("Unknown action: " + action));
-    }
-
-    private RpcResponse handleUndo(JsonObject params) {
-        var undone = editor.getHistory().undo();
-        JsonObject result = new JsonObject();
-        if (undone.isPresent()) {
-            documentManager.reparse();
-            Document doc = documentManager.getActiveDocument();
-            result.addProperty("undone", true);
-            result.addProperty("description", undone.get().description());
-            JsonObject cursor = new JsonObject();
-            cursor.addProperty("line", doc.getCursor().line());
-            cursor.addProperty("column", doc.getCursor().column());
-            result.add("newCursor", cursor);
-        } else {
-            result.addProperty("undone", false);
-            result.add("description", null);
-            result.add("newCursor", null);
-        }
-        return RpcResponse.success(result);
-    }
-
-    private RpcResponse handleRedo(JsonObject params) {
-        var redone = editor.getHistory().redo();
-        JsonObject result = new JsonObject();
-        if (redone.isPresent()) {
-            documentManager.reparse();
-            Document doc = documentManager.getActiveDocument();
-            result.addProperty("redone", true);
-            result.addProperty("description", redone.get().description());
-            JsonObject cursor = new JsonObject();
-            cursor.addProperty("line", doc.getCursor().line());
-            cursor.addProperty("column", doc.getCursor().column());
-            result.add("newCursor", cursor);
-        } else {
-            result.addProperty("redone", false);
-            result.add("description", null);
-            result.add("newCursor", null);
-        }
-        return RpcResponse.success(result);
     }
 
     private RpcResponse handleSearch(JsonObject params) {
