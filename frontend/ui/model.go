@@ -83,14 +83,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Editor pane handling
-		if m.activePane == PaneEditor {
-			// Forward all keys directly to editor
-			cmd := m.editorPane.Update(msg)
-			cmds = append(cmds, cmd)
-			content := m.editorPane.textarea.Value()
-			cmds = append(cmds, m.previewPane.SetContent(content))
-			return m, tea.Batch(cmds...)
+		// Global hotkeys — intercept before editor swallows them
+		switch msg.String() {
+		case "ctrl+b":
+			m.fileTree.Toggle()
+			m.recalcLayout()
+			return m, nil
+		case "tab":
+			if m.activePane == PaneEditor {
+				m.activePane = PanePreview
+			} else {
+				m.activePane = PaneEditor
+			}
+			m.editorPane.SetFocused(m.activePane == PaneEditor)
+			m.previewPane.SetFocused(m.activePane == PanePreview)
+			return m, nil
+		case ":":
+			if !m.commandPalette.IsVisible() {
+				m.commandPalette.Show()
+				return m, nil
+			}
 		}
 
 		// Command palette intercepts when visible
@@ -111,30 +123,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Global key handling
+		// Editor pane handling — only reached for non-global keys
+		if m.activePane == PaneEditor {
+			cmd := m.editorPane.Update(msg)
+			cmds = append(cmds, cmd)
+			content := m.editorPane.textarea.Value()
+			cmds = append(cmds, m.previewPane.SetContent(content))
+			return m, tea.Batch(cmds...)
+		}
+
+		// Preview pane: q to quit, scroll keys
 		switch msg.String() {
-		case "ctrl+b":
-			m.fileTree.Toggle()
-			m.recalcLayout()
-			return m, nil
-		case ":":
-			m.commandPalette.Show()
-			return m, nil
-		case "tab":
-			if m.activePane == PaneEditor {
-				m.activePane = PanePreview
-			} else {
-				m.activePane = PaneEditor
-			}
-			m.editorPane.SetFocused(m.activePane == PaneEditor)
-			m.previewPane.SetFocused(m.activePane == PanePreview)
-			return m, nil
 		case "q":
 			m.quitting = true
 			return m, tea.Quit
 		}
 
-		// Navigation handling for Preview
 		if m.activePane == PanePreview {
 			switch msg.String() {
 			case "j", "down", "k", "up", "pgup", "pgdown", "ctrl+u", "ctrl+d":
@@ -160,6 +164,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.filePath = msg.path
 		m.statusBar.SetMessage(fmt.Sprintf("Opened %s", msg.path))
 		cmds = append(cmds, m.previewPane.SetContent(msg.content))
+
+	case fileSavedMsg:
+		m.statusBar.SetMessage(fmt.Sprintf("Saved %s", msg.path))
+
+	case fileSaveErrMsg:
+		m.statusBar.SetMessage(fmt.Sprintf("Save failed: %v", msg.err))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -258,18 +268,21 @@ func (m *Model) executeCommand(cmd string) tea.Cmd {
 	}
 }
 
+type fileSavedMsg struct{ path string }
+type fileSaveErrMsg struct{ err error }
+
 func (m *Model) saveFile() tea.Cmd {
-	if m.rpc == nil || m.filePath == "" {
+	if m.filePath == "" {
 		m.statusBar.SetMessage("No file path — use :w <path>")
 		return nil
 	}
+	content := strings.ReplaceAll(m.editorPane.textarea.Value(), "\r\n", "\n")
+	path := m.filePath
 	return func() tea.Msg {
-		params := map[string]interface{}{"path": m.filePath}
-		_, err := m.rpc.Call("document/save", params)
-		if err != nil {
-			return nil // ignore for now
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			return fileSaveErrMsg{err}
 		}
-		return nil
+		return fileSavedMsg{path}
 	}
 }
 
@@ -279,42 +292,15 @@ type fileOpenedMsg struct {
 }
 
 func (m *Model) openFile(path string) tea.Cmd {
-	if m.rpc == nil {
-		// Direct file read fallback (no backend)
-		return func() tea.Msg {
-			data, err := readFileContent(path)
-			if err != nil {
-				return nil
-			}
-			return fileOpenedMsg{content: data, path: path}
-		}
-	}
 	return func() tea.Msg {
-		params := map[string]interface{}{"path": path}
-		result, err := m.rpc.Call("document/open", params)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil
 		}
-		var res struct {
-			Content string `json:"content"`
-		}
-		json.Unmarshal(result, &res)
-		return fileOpenedMsg{content: res.Content, path: path}
+		content := strings.ReplaceAll(string(data), "\r\n", "\n")
+		content = strings.ReplaceAll(content, "\r", "\n")
+		return fileOpenedMsg{content: content, path: path}
 	}
-}
-
-func readFileContent(path string) (string, error) {
-	data, err := readFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-func readFile(path string) ([]byte, error) {
-	return func() ([]byte, error) {
-		return nil, fmt.Errorf("not implemented without backend")
-	}()
 }
 
 func countWords(s string) int {
