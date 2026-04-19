@@ -1,4 +1,21 @@
+# devenv / direnv
+.devenv/
+.direnv/
+
+# Gradle
 .gradle/
 build/
-.devenv
-.direnv
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Go build artifacts
+frontend/charmed
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
