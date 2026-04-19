@@ -166,10 +166,11 @@ public class MarkdownParser implements Parser {
         while (i < text.length()) {
             char c = text.charAt(i);
 
-            // Bold (**...**)
-            if (c == '*' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
+            // Bold (**...** or __...__)
+            if ((c == '*' || c == '_') && i + 1 < text.length() && text.charAt(i + 1) == c) {
                 flushText(buffer, nodes);
-                int close = text.indexOf("**", i + 2);
+                String marker = "" + c + c;
+                int close = text.indexOf(marker, i + 2);
                 if (close != -1) {
                     String inner = text.substring(i + 2, close);
                     nodes.add(factory.createBold(parseInlines(inner)));
@@ -178,10 +179,10 @@ public class MarkdownParser implements Parser {
                 }
             }
 
-            // Italic (*...*)
-            if (c == '*' && (i + 1 >= text.length() || text.charAt(i + 1) != '*')) {
+            // Italic (*...* or _..._)
+            if ((c == '*' || c == '_') && (i + 1 >= text.length() || text.charAt(i + 1) != c)) {
                 flushText(buffer, nodes);
-                int close = text.indexOf('*', i + 1);
+                int close = text.indexOf(c, i + 1);
                 if (close != -1) {
                     String inner = text.substring(i + 1, close);
                     nodes.add(factory.createItalic(parseInlines(inner)));
