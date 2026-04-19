@@ -5,9 +5,11 @@
 ## Features
 
 - **Split-Pane Interface**: Raw markdown editing on the left, live [Glamour](https://github.com/charmbracelet/glamour)-rendered preview on the right.
-- **Vim-like Editing**: Modal editing support (Normal, Insert, Command modes).
+- **File Tree**: Toggle a file browser with `Ctrl+B` to open markdown files.
+- **Command Palette**: Press `:` to run commands (`w` save, `q` quit, `wq` save & quit).
+- **Pane Navigation**: `Tab` switches focus between editor and preview; `j`/`k`/`PgUp`/`PgDn` scroll the preview.
 - **Architecture**: Clean separation of concerns with JSON-RPC over stdin/stdout.
-- **Java OOP Showcase**: Demonstrates SOLID principles, 12+ design patterns, and Java 21+ features (sealed classes, records, pattern matching).
+- **Java OOP Showcase**: Demonstrates SOLID principles, design patterns, and Java 21+ features.
 
 ## Prerequisites
 
