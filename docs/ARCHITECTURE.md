@@ -8,7 +8,7 @@
 
 1. **Java OOP Showcase** -- Demonstrate all 4 OOP pillars, SOLID principles, 12+ design patterns, and Java 21+ language features (sealed classes, records, pattern matching) in a naturally motivated, non-trivial application.
 2. **Beautiful Terminal UI** -- Leverage Charm's ecosystem (Bubble Tea, Lip Gloss, Glamour, Bubbles) for a polished, modern TUI that rivals GUI editors in aesthetics.
-3. **Full Editor + Viewer** -- Split-pane interface with raw markdown editing on the left, live Glamour-rendered preview on the right, and vim-like modal editing (Normal, Insert, Command modes).
+3. **Full Editor + Viewer** -- Split-pane interface with raw markdown editing on the left, live Glamour-rendered preview on the right.
 
 ---
 
@@ -21,11 +21,11 @@
 │  Bubble Tea   (event loop)      │ framing (LSP-style) │  Markdown parsing (AST)          │
 │  Glamour      (md preview)      │                     │  Document model (Composite)      │
 │  Lip Gloss    (styling/layout)  │ Go spawns Java as   │  Editor state (State pattern)    │
-│  Bubbles      (TUI components)  │ child process via   │  Commands (Command pattern)      │
-│                                 │ exec.Command         │  Visitors, Observers, Strategy   │
+│  Bubbles      (TUI components)  │ child process via   │  Visitors, Observers, Strategy   │
+│                                 │ exec.Command         │                                  │
 │  Owns: terminal, rendering,     │                     │  Owns: ALL business logic,       │
-│  key capture, mouse events,     │ stderr → log file   │  document state, undo/redo,      │
-│  layout composition             │ (debug only)        │  parsing, export, search          │
+│  key capture, mouse events,     │ stderr → log file   │  document state, parsing,        │
+│  layout composition             │ (debug only)        │  export, search                  │
 └─────────────────────────────────┘                     └──────────────────────────────────┘
 ```
 
@@ -61,8 +61,7 @@
 | Frontend  | Bubbles            | v2      | Pre-built TUI components             |
 | Backend   | Java               | 21+     | Business logic, OOP showcase         |
 | Backend   | Gradle             | 8.x     | Build system                         |
-| Backend   | Gson               | 2.x     | JSON serialization                   |
-| Backend   | lsp4j-jsonrpc      | latest  | JSON-RPC 2.0 message handling        |
+| Backend   | Gson               | 2.x     | JSON serialization (Content-Length framing hand-rolled) |
 | Protocol  | JSON-RPC 2.0       | --      | Request/response/notification format |
 | Protocol  | Content-Length      | --      | Message framing (LSP-style)          |
 
@@ -84,8 +83,7 @@
 
 - Markdown parsing: raw text → AST (Abstract Syntax Tree) using the Composite pattern
 - Document model: content storage, cursor position, selection ranges
-- Editor state machine: Normal / Insert / Command modes (State pattern)
-- Command execution with full undo/redo (Command pattern)
+- Editor state machine: Insert mode (State pattern)
 - AST traversal for search, word count, export (Visitor pattern)
 - Event system for state change propagation (Observer pattern)
 - Multiple export formats: markdown, HTML, plain text (Strategy pattern)
@@ -108,7 +106,6 @@ charMeD/
 │       ├── parser/                   # Markdown parser (Factory, Strategy)
 │       ├── visitor/                  # AST visitors (Visitor pattern)
 │       ├── editor/                   # Editor state machine (State pattern)
-│       ├── command/                  # Undo/redo commands (Command pattern)
 │       ├── renderer/                 # Export renderers (Strategy, Decorator)
 │       ├── event/                    # Event bus (Observer, Generics)
 │       ├── rpc/                      # JSON-RPC server (Adapter pattern)
@@ -209,22 +206,11 @@ User presses 'o' → Go captures key
 ### Editing Text
 
 ```
-User types 'i' → Go sends: {"method": "editor/changeMode", "params": {"mode": "insert"}}
-  → Java transitions to InsertMode, notifies: {"method": "ui/statusBar", "params": {"mode": "INSERT"}}
 User types characters → Go sends: {"method": "document/edit", "params": {"text": "hello", "position": {...}}}
-  → Java creates InsertTextCommand, executes it, pushes to undo stack
-  → Java re-parses affected region, updates AST
+  → Java inserts text into document, re-parses affected region, updates AST
+  → Java publishes DocumentChangedEvent → RpcServer sends ui/refresh notification
   → Java notifies: {"method": "ui/refresh", "params": {"lines": [...], "cursor": {...}}}
   → Go re-renders editor pane + preview pane
-```
-
-### Undo/Redo
-
-```
-User presses 'u' (Normal mode) → Go sends: {"method": "document/undo"}
-  → Java pops last command from undo stack, calls command.undo()
-  → Java pushes command to redo stack
-  → Java notifies: {"method": "ui/refresh", ...}
 ```
 
 ---
@@ -235,7 +221,7 @@ User presses 'u' (Normal mode) → Go sends: {"method": "document/undo"}
 |----------|--------|-----------|
 | IPC mechanism | stdin/stdout JSON-RPC | Simplest, no ports, no deps, LSP-proven |
 | Markdown rendering | Glamour (not Glow) | Glow is a CLI app, not a library; Glamour is the rendering engine |
-| Editor paradigm | Vim-like modal | Natural fit for State pattern; familiar to terminal users |
+| Editor paradigm | Insert mode (State pattern) | `EditorMode` sealed interface delegates key handling; modes are extensible by design |
 | Java version | 21+ | Sealed classes, records, pattern matching, virtual threads |
 | Build system | Gradle + Go modules | Standard for each ecosystem |
 | Message framing | Content-Length headers | Battle-tested in LSP; clean message boundaries |

@@ -180,8 +180,7 @@ type EditorPane struct {
 - The textarea content is synchronized with Java's document state
 
 **Key behaviors:**
-- In **Insert mode**: keystrokes go to the textarea and are forwarded to Java
-- In **Normal mode**: keystrokes are navigation commands sent to Java
+- Keystrokes go to the textarea and are forwarded to Java via `document/edit`
 - The textarea's cursor position is kept in sync with Java's `CursorPosition`
 
 ### Preview Pane (Right) -- `ui/preview_pane.go`
@@ -224,7 +223,7 @@ A single-line bar at the bottom showing current state.
 
 ```go
 type StatusBar struct {
-    mode      string   // "NORMAL", "INSERT", "COMMAND"
+    mode      string   // "INSERT"
     filename  string   // current file path or "[No File]"
     wordCount int
     lineCount int
@@ -238,13 +237,10 @@ type StatusBar struct {
 **Rendered output example:**
 
 ```
- NORMAL │ README.md [+] │ Ln 15, Col 8 │ 342 words │ 47 lines
+ INSERT │ README.md [+] │ Ln 15, Col 8 │ 342 words │ 47 lines
 ```
 
-The mode indicator uses different background colors:
-- Normal: subtle gray
-- Insert: green
-- Command: yellow
+The mode indicator uses a green background for Insert mode.
 
 ### Command Palette -- `ui/command_palette.go`
 
@@ -455,60 +451,39 @@ package keys
 import "github.com/charmbracelet/bubbles/v2/key"
 
 type KeyMap struct {
-    // Normal mode
-    Quit         key.Binding
-    Save         key.Binding
-    Open         key.Binding
-    EnterInsert  key.Binding
-    EnterCommand key.Binding
-    Undo         key.Binding
-    Redo         key.Binding
-    MoveUp       key.Binding
-    MoveDown     key.Binding
-    MoveLeft     key.Binding
-    MoveRight    key.Binding
-    SwitchPane   key.Binding
-    Search       key.Binding
-    Help         key.Binding
-
-    // Global
-    ForceQuit    key.Binding
+    Quit       key.Binding
+    Save       key.Binding
+    Open       key.Binding
+    SwitchPane key.Binding
+    Search     key.Binding
+    Help       key.Binding
+    ForceQuit  key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
-    Quit:         key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-    Save:         key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "save")),
-    Open:         key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open file")),
-    EnterInsert:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "insert mode")),
-    EnterCommand: key.NewBinding(key.WithKeys(":"), key.WithHelp(":", "command mode")),
-    Undo:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo")),
-    Redo:         key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "redo")),
-    MoveUp:       key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/up", "up")),
-    MoveDown:     key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/down", "down")),
-    MoveLeft:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/left", "left")),
-    MoveRight:    key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l/right", "right")),
-    SwitchPane:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch pane")),
-    Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
-    Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-    ForceQuit:    key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "force quit")),
+    Quit:       key.NewBinding(key.WithKeys("ctrl+q"), key.WithHelp("ctrl+q", "quit")),
+    Save:       key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "save")),
+    Open:       key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open file")),
+    SwitchPane: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch pane")),
+    Search:     key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "search")),
+    Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+    ForceQuit:  key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "force quit")),
 }
 ```
 
 ### Key → RPC Mapping
 
-When a key is pressed in the Go frontend, it's translated to an RPC call:
+When a key is pressed, it's translated to an RPC call:
 
-| Key (Normal mode) | RPC Method | RPC Params |
-|--------------------|------------|------------|
-| `i` | `editor/changeMode` | `{"mode": "insert"}` |
-| `:` | `editor/changeMode` | `{"mode": "command"}` |
-| `h/j/k/l` | `editor/moveCursor` | `{"direction": "left/down/up/right"}` |
-| `u` | `document/undo` | `{}` |
-| `Ctrl+r` | `document/redo` | `{}` |
-| `/` | (local) open search input | -- |
-| `q` | `shutdown` | `{}` |
-
-In **Insert mode**, all printable characters are sent as `document/edit` with the typed text. `Esc` sends `editor/changeMode` with `{"mode": "normal"}`.
+| Key | RPC Method | RPC Params |
+|-----|------------|------------|
+| Printable chars | `document/edit` | `{"action": "insert", "text": "...", "position": {...}}` |
+| `Enter` | `document/edit` | `{"action": "newline", "position": {...}}` |
+| `Backspace` | `document/edit` | `{"action": "delete", "range": {...}}` |
+| `Ctrl+s` | `document/save` | `{}` |
+| `Ctrl+o` | (local) open file tree | -- |
+| `Tab` | (local) switch pane focus | -- |
+| `Ctrl+c` / `Ctrl+q` | `shutdown` | `{}` |
 
 ---
 

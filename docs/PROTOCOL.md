@@ -132,8 +132,8 @@ Sent once at startup. Java responds with its capabilities.
     "result": {
         "serverVersion": "0.1.0",
         "capabilities": {
-            "undo": true,
-            "redo": true,
+            "undo": false,
+            "redo": false,
             "search": true,
             "export": ["markdown", "html", "plaintext"]
         }
@@ -333,74 +333,7 @@ Apply a text edit to the document. This is the core editing operation.
 }
 ```
 
-**Side Effects:** Creates an `EditorCommand`, executes it (pushes to undo stack), re-parses affected region, publishes `DocumentChangedEvent`, sends `ui/refresh` notification.
-
----
-
-### `document/undo`
-
-Undo the last edit operation.
-
-**Request:**
-
-```json
-{
-    "jsonrpc": "2.0",
-    "id": 6,
-    "method": "document/undo",
-    "params": {}
-}
-```
-
-**Response:**
-
-```json
-{
-    "jsonrpc": "2.0",
-    "id": 6,
-    "result": {
-        "undone": true,
-        "description": "Insert 'hello world'",
-        "newCursor": {
-            "line": 2,
-            "column": 5
-        }
-    }
-}
-```
-
-If nothing to undo:
-
-```json
-{
-    "jsonrpc": "2.0",
-    "id": 6,
-    "result": {
-        "undone": false,
-        "description": null,
-        "newCursor": null
-    }
-}
-```
-
----
-
-### `document/redo`
-
-Redo the last undone operation.
-
-**Request:**
-
-```json
-{
-    "jsonrpc": "2.0",
-    "id": 7,
-    "method": "document/redo",
-    "params": {}
-}
-```
-
-**Response:** Same shape as `document/undo` but with `"redone"` field.
+**Side Effects:** Applies the edit to the document, re-parses affected region, publishes `DocumentChangedEvent`, sends `ui/refresh` notification.
 
 ---
 
@@ -532,7 +465,7 @@ If `outputPath` is omitted, the exported content is returned in the response. If
 
 ### `editor/changeMode`
 
-Change the editor mode (Normal, Insert, Command).
+Change the editor mode. **Currently a no-op** -- the editor is locked to `InsertMode` and mode transitions are disabled. Accepted without error for forward compatibility.
 
 **Request:**
 
@@ -547,7 +480,7 @@ Change the editor mode (Normal, Insert, Command).
 }
 ```
 
-**Valid modes:** `"normal"`, `"insert"`, `"command"`
+**Valid modes (accepted but only `"insert"` has any effect):** `"normal"`, `"insert"`, `"command"`
 
 **Response:**
 
@@ -556,13 +489,13 @@ Change the editor mode (Normal, Insert, Command).
     "jsonrpc": "2.0",
     "id": 11,
     "result": {
-        "previousMode": "normal",
+        "previousMode": "insert",
         "currentMode": "insert"
     }
 }
 ```
 
-**Side Effects:** Transitions the `Editor` state machine, publishes `ModeChangedEvent`, sends `ui/statusBar` notification.
+**Side Effects:** None -- `Editor.transitionTo()` is currently a no-op.
 
 ---
 
@@ -783,19 +716,10 @@ Go                                  Java
 ```
 Go                                  Java
 │                                    │
-│──── editor/changeMode ────────────►│
-│     {mode: "insert"}              │
-│◄─── response ─────────────────────│
-│                                    │
-│◄─── ui/statusBar (notification) ──│
-│     {mode: "INSERT"}              │
-│                                    │
 │  User types "Hello"               │
 │                                    │
 │──── document/edit ────────────────►│
-│     {action:"insert",text:"Hello"} │ creates InsertTextCommand
-│                                    │ executes command
-│                                    │ pushes to undo stack
+│     {action:"insert",text:"Hello"} │ inserts text into document
 │                                    │ re-parses affected lines
 │◄─── response ─────────────────────│
 │     {applied, newCursor}          │
@@ -805,23 +729,6 @@ Go                                  Java
 │                                    │
 │  Go updates: textarea content      │
 │  Go re-renders: Glamour preview    │
-```
-
-### Undo/Redo
-
-```
-Go                                  Java
-│                                    │
-│──── document/undo ────────────────►│
-│                                    │ pops from undo stack
-│                                    │ calls command.undo()
-│                                    │ pushes to redo stack
-│                                    │ re-parses affected region
-│◄─── response ─────────────────────│
-│     {undone, description, cursor} │
-│                                    │
-│◄─── ui/refresh (notification) ────│
-│     {lines, cursor, mode}         │
 ```
 
 ### Search

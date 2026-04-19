@@ -14,7 +14,6 @@ com.charmed/
 ├── parser/                     # Markdown parsing    → Factory, Strategy
 ├── visitor/                    # AST traversal       → Visitor Pattern
 ├── editor/                     # Editor modes        → State Pattern
-├── command/                    # Undo/redo actions   → Command Pattern, Generics
 ├── renderer/                   # Export formats      → Strategy, Decorator
 ├── event/                      # Event system        → Observer, Generics
 ├── rpc/                        # JSON-RPC server     → Adapter Pattern
@@ -236,20 +235,19 @@ public void accept(NodeVisitor visitor) {
 
 ### `editor/` -- Editor State Machine (State Pattern)
 
-The editor has three modes (Normal, Insert, Command) with different behavior for the same key presses. The State pattern encapsulates mode-specific behavior behind a common interface.
+The editor mode system uses the State pattern. Currently only `InsertMode` is implemented; the sealed interface is structured to support additional modes in the future.
 
 | Class | Type | Purpose |
 |-------|------|---------|
-| `Editor` | Class | The context. Holds the current `EditorMode`, delegates key handling to it. Manages the `Document`, `CommandHistory`, and `EventBus`. |
-| `EditorMode` | Sealed Interface | `sealed interface EditorMode permits NormalMode, InsertMode, CommandMode` |
-| `NormalMode` | Class | Navigation, mode switching, undo/redo triggers. `h/j/k/l` move cursor, `i` → Insert, `:` → Command, `u` → undo, `Ctrl+r` → redo. |
-| `InsertMode` | Class | Text input. Characters are inserted at cursor. `Esc` → Normal. |
-| `CommandMode` | Class | Command-line input. `:w` save, `:q` quit, `:e` open, `:/pattern` search. `Esc` → Normal, `Enter` → execute. |
+| `Editor` | Class | The context. Holds the current `EditorMode`, delegates key handling to it. Manages the `Document` via `DocumentManager` and `EventBus`. |
+| `EditorMode` | Sealed Interface | `sealed interface EditorMode permits InsertMode` |
+| `InsertMode` | Class | Text input. Characters are inserted at cursor position. |
+| `HandleResult` | Class | Result returned from `handleKey()` -- captures what action was taken. |
 
 **State Interface:**
 
 ```java
-public sealed interface EditorMode permits NormalMode, InsertMode, CommandMode {
+public sealed interface EditorMode permits InsertMode {
     HandleResult handleKey(Editor editor, String key);
     String modeName();
 }
@@ -260,98 +258,25 @@ public sealed interface EditorMode permits NormalMode, InsertMode, CommandMode {
 ```java
 public class Editor {
     private EditorMode currentMode;
-    private final Document document;
-    private final CommandHistory<EditorCommand> history;
+    private final DocumentManager documentManager;
     private final EventBus eventBus;
 
+    public Editor(DocumentManager documentManager, EventBus eventBus) {
+        this.currentMode = new InsertMode();  // starts in InsertMode
+    }
+
     public HandleResult processKey(String key) {
-        HandleResult result = currentMode.handleKey(this, key);
-        // ... publish events based on result
-        return result;
+        return currentMode.handleKey(this, key);
     }
 
     public void transitionTo(EditorMode newMode) {
-        this.currentMode = newMode;
-        eventBus.publish(new ModeChangedEvent(newMode.modeName()));
+        // No-op: mode is locked to InsertMode
     }
 }
-```
-
-**Why sealed for EditorMode?** There are exactly three modes. Sealing the interface means we can use pattern matching `switch`:
-
-```java
-return switch (editor.currentMode()) {
-    case NormalMode n  -> n.handleNavigation(key);
-    case InsertMode i  -> i.handleTyping(key);
-    case CommandMode c -> c.handleCommand(key);
-};
 ```
 
 **OOP Patterns:**
-- **State** -- Each mode is a state object that encapsulates mode-specific behavior. The `Editor` delegates to the current mode.
-
----
-
-### `command/` -- Undo/Redo (Command Pattern + Generics)
-
-Every document mutation is wrapped in a command object that can be executed and undone. The `CommandHistory` maintains undo and redo stacks.
-
-| Class | Type | Purpose |
-|-------|------|---------|
-| `EditorCommand` | Interface | `void execute()`, `void undo()`, `String description()` |
-| `CommandHistory<T extends EditorCommand>` | Generic Class | Manages undo/redo stacks. Generic over command type for type safety. |
-| `InsertTextCommand` | Class | Inserts text at a position. Undo removes it. |
-| `DeleteTextCommand` | Class | Deletes text in a range. Undo re-inserts it. |
-| `FormatBoldCommand` | Class | Wraps selection in `**...**`. Undo removes the markers. |
-| `FormatItalicCommand` | Class | Wraps selection in `*...*`. Undo removes the markers. |
-| `ReplaceTextCommand` | Class | Replaces text in a range with new text. Undo restores original. |
-
-**Command Interface:**
-
-```java
-public interface EditorCommand {
-    void execute();
-    void undo();
-    String description();  // For display in undo history, e.g. "Insert 'hello'"
-}
-```
-
-**Generic CommandHistory:**
-
-```java
-public class CommandHistory<T extends EditorCommand> {
-    private final Deque<T> undoStack = new ArrayDeque<>();
-    private final Deque<T> redoStack = new ArrayDeque<>();
-
-    public void execute(T command) {
-        command.execute();
-        undoStack.push(command);
-        redoStack.clear();  // New action invalidates redo history
-    }
-
-    public Optional<T> undo() {
-        if (undoStack.isEmpty()) return Optional.empty();
-        T command = undoStack.pop();
-        command.undo();
-        redoStack.push(command);
-        return Optional.of(command);
-    }
-
-    public Optional<T> redo() {
-        if (redoStack.isEmpty()) return Optional.empty();
-        T command = redoStack.pop();
-        command.execute();
-        undoStack.push(command);
-        return Optional.of(command);
-    }
-}
-```
-
-**Why Generics?** `CommandHistory<T extends EditorCommand>` is bounded generic -- it works with any command type while preserving compile-time type safety. This demonstrates Java generics with upper bounds.
-
-**OOP Patterns:**
-- **Command** -- Each mutation is a first-class object with `execute()` and `undo()`.
-- **Generics** -- `CommandHistory<T extends EditorCommand>` for type-safe collection management.
+- **State** -- The `Editor` context delegates to `EditorMode` for key handling. The sealed interface makes mode dispatch exhaustive and type-safe.
 
 ---
 
@@ -414,7 +339,6 @@ A lightweight, type-safe event bus for decoupling components. When the document 
 | `EventListener<T extends Event>` | Functional Interface | `void onEvent(T event)` -- generic listener. |
 | `DocumentChangedEvent` | Class | Published when document content changes. Contains old/new content, affected range. |
 | `CursorMovedEvent` | Class | Published when cursor position changes. Contains old/new position. |
-| `ModeChangedEvent` | Class | Published when editor mode changes. Contains new mode name. |
 
 **EventBus with Generics:**
 
@@ -465,8 +389,8 @@ Adapts the internal Java API (Editor, DocumentManager) to the JSON-RPC protocol 
 |-------|------|---------|
 | `RpcServer` | Class | Reads JSON-RPC messages from stdin, dispatches to handlers, writes responses to stdout. Uses Content-Length framing. |
 | `RpcHandler` | Interface | `RpcResponse handle(String method, JsonObject params)` -- handler contract. |
-| `DocumentHandler` | Class | Implements `RpcHandler` for `document/*` methods (open, edit, undo, redo, search, export). Adapts RPC params to `DocumentManager` calls. |
-| `EditorHandler` | Class | Implements `RpcHandler` for `editor/*` methods (changeMode, moveCursor). Adapts RPC params to `Editor` calls. |
+| `DocumentHandler` | Class | Implements `RpcHandler` for `document/*` methods (open, new, save, edit, search, getContent, export). Adapts RPC params to `DocumentManager` calls. |
+| `EditorHandler` | Class | Implements `RpcHandler` for `editor/*` methods (changeMode -- currently a no-op). Adapts RPC params to `Editor` calls. |
 | `RpcResponse` | Record | `record RpcResponse(Object result, RpcError error)` -- standard response envelope. |
 
 **Adapter Pattern:**
@@ -482,9 +406,9 @@ public class DocumentHandler implements RpcHandler {
     public RpcResponse handle(String method, JsonObject params) {
         return switch (method) {
             case "document/open"       -> handleOpen(params);
+            case "document/new"        -> handleNew(params);
+            case "document/save"       -> handleSave(params);
             case "document/edit"       -> handleEdit(params);
-            case "document/undo"       -> handleUndo(params);
-            case "document/redo"       -> handleRedo(params);
             case "document/search"     -> handleSearch(params);
             case "document/getContent" -> handleGetContent(params);
             case "document/export"     -> handleExport(params);
@@ -541,8 +465,7 @@ A clean exception hierarchy for domain-specific errors. All extend from a common
 CharMedException (abstract, extends RuntimeException)
 ├── ParseException          -- Malformed markdown, unexpected tokens
 ├── RenderException         -- Rendering failures
-├── DocumentIOException     -- File read/write failures
-└── CommandExecutionException -- Command execute/undo failures
+└── DocumentIOException     -- File read/write failures
 ```
 
 ```java
@@ -581,10 +504,9 @@ The `errorCode` maps directly to JSON-RPC error codes, allowing the RPC layer to
 
 | Dependency | Group ID | Purpose |
 |------------|----------|---------|
-| Gson | `com.google.code.gson:gson` | JSON serialization/deserialization for RPC messages |
-| lsp4j-jsonrpc | `org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc` | JSON-RPC 2.0 message handling, Content-Length framing |
+| Gson | `com.google.code.gson:gson:2.11.0` | JSON serialization/deserialization for RPC messages |
 
-Both are lightweight, well-maintained libraries. No heavy frameworks (Spring, etc.) -- this is intentional to keep the OOP patterns explicit.
+Content-Length framing is implemented manually in `RpcServer` (~50 lines). No heavy frameworks (Spring, lsp4j, etc.) -- intentional to keep the OOP patterns explicit.
 
 ---
 
@@ -594,11 +516,9 @@ Both are lightweight, well-maintained libraries. No heavy frameworks (Spring, et
 |---------|-------|-----|
 | Sealed interfaces | `MarkdownNode`, `EditorMode` | Exhaustive pattern matching, closed hierarchies |
 | Records | `CursorPosition`, `SelectionRange`, `Token`, `RpcResponse` | Immutable data carriers |
-| Pattern matching `switch` | Visitors, RPC handlers, mode dispatch | Concise, exhaustive, type-safe branching |
-| Generics with bounds | `CommandHistory<T>`, `EventListener<T>`, `EventBus` | Type-safe collections and callbacks |
+| Pattern matching `switch` | Visitors, RPC handlers | Concise, exhaustive, type-safe branching |
+| Generics with bounds | `EventListener<T extends Event>`, `EventBus` | Type-safe event subscriptions and callbacks |
 | Functional interfaces | `EventListener<T>` | Lambda-friendly observer callbacks |
-| Virtual threads | `RpcServer` message handling | Lightweight concurrency for async operations |
-| `Optional<T>` | `CommandHistory.undo()`, `CommandHistory.redo()` | Explicit nullable return types |
 | Enhanced enums | `NodeType`, `TokenType` | Behavior-carrying enumerations |
 
 ---

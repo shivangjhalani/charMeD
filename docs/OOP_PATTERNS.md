@@ -89,31 +89,24 @@ String output = renderer.render(document.getAst());
 
 ### 4. Command Pattern
 
-**Where:** `command/` -- Every document mutation (insert, delete, format, replace).
+**Where:** The Adapter layer (`rpc/DocumentHandler`) translates each RPC edit action into a direct call on the document. The Command pattern structures these as named, self-contained operations.
 
-**What:** Command encapsulates a request as an object, allowing parameterization, queuing, and -- critically -- **undo/redo**. Each command stores enough state to reverse itself.
+**What:** Command encapsulates a request as an object, allowing parameterization and clean separation between the caller (RPC handler) and the executor (Document methods).
 
-**Why it's natural:** Undo/redo is the killer use case for the Command pattern. A markdown editor needs undo. Every edit must be reversible. Wrapping each edit in a command object with `execute()` and `undo()` is the canonical solution.
+**Why it's natural:** Each edit action (`insert`, `delete`, `newline`) is a distinct operation dispatched through `document/edit`. Treating each as a command keeps dispatch logic uniform and each operation self-contained.
 
-**Classes:**
-- `EditorCommand` (interface) -- `execute()`, `undo()`, `description()`
-- `InsertTextCommand` -- stores inserted text and position, undo removes it
-- `DeleteTextCommand` -- stores deleted text and range, undo re-inserts it
-- `FormatBoldCommand` -- stores selection range, wraps in `**`, undo removes markers
-- `FormatItalicCommand` -- stores selection range, wraps in `*`, undo removes markers
-- `ReplaceTextCommand` -- stores old and new text, undo restores old
-- `CommandHistory<T>` -- manages undo/redo stacks
-
-**Example:**
+**How it maps in charMeD:**
 
 ```java
-// Execute and track for undo
-EditorCommand cmd = new InsertTextCommand(document, position, "hello");
-history.execute(cmd);  // calls cmd.execute(), pushes to undo stack
-
-// Undo
-history.undo();  // pops from undo, calls cmd.undo(), pushes to redo
+// DocumentHandler dispatches each action as a named command
+case "document/edit" -> switch (action) {
+    case "insert"  -> editor.insertText(position, text);
+    case "delete"  -> editor.deleteText(start, end);
+    case "newline" -> editor.insertText(position, "\n");
+};
 ```
+
+Each action is an isolated operation that modifies the document and triggers a reparse.
 
 ---
 
@@ -186,43 +179,35 @@ eventBus.publish(new DocumentChangedEvent(oldContent, newContent, affectedRange)
 
 ### 7. State Pattern
 
-**Where:** `editor/` -- The editor mode system (Normal, Insert, Command).
+**Where:** `editor/` -- The editor mode system.
 
 **What:** State allows an object to alter its behavior when its internal state changes. The object appears to change its class. Each state is a separate class with its own behavior for the same operations.
 
-**Why it's natural:** A vim-like editor has modes. In Normal mode, `j` moves the cursor down. In Insert mode, `j` types the letter "j". In Command mode, `j` is part of a command string. The same input has **completely different behavior** depending on the mode. This is exactly what State pattern is for.
+**Why it's natural:** The editor can operate in different modes where the same key press has different meaning. The State pattern encapsulates mode-specific behavior behind a common interface, letting the `Editor` context delegate without knowing which mode is active.
 
 **Classes:**
 - `EditorMode` (sealed interface) -- `handleKey()`, `modeName()`
-- `NormalMode` -- navigation, mode switching, undo/redo
-- `InsertMode` -- text input, `Esc` returns to Normal
-- `CommandMode` -- command input, `Enter` executes, `Esc` returns to Normal
-- `Editor` -- the context, delegates to current mode
+- `InsertMode` -- text input; characters are inserted at the cursor position
+- `HandleResult` -- result returned by `handleKey()` describing the action taken
+- `Editor` -- the context, holds current `EditorMode`, delegates to it
 
 **Example:**
 
 ```java
-// Same method, different behavior depending on state
+// Editor delegates to the current mode -- behavior varies by state
 public HandleResult processKey(String key) {
-    return currentMode.handleKey(this, key);  // delegates to NormalMode, InsertMode, or CommandMode
-}
-
-// Mode transition
-public void transitionTo(EditorMode newMode) {
-    this.currentMode = newMode;
-    eventBus.publish(new ModeChangedEvent(newMode.modeName()));
+    return currentMode.handleKey(this, key);
 }
 ```
 
 **Sealed + Pattern Matching:**
 
 ```java
-// Exhaustive switch -- compiler ensures all modes are handled
-String indicator = switch (currentMode) {
-    case NormalMode n  -> "NORMAL";
-    case InsertMode i  -> "INSERT";
-    case CommandMode c -> "COMMAND";
-};
+// Sealed interface enables exhaustive, compiler-verified dispatch
+public sealed interface EditorMode permits InsertMode {
+    HandleResult handleKey(Editor editor, String key);
+    String modeName();
+}
 ```
 
 ---
@@ -354,10 +339,10 @@ This isn't forced -- it's the inherent structure. The JSON-RPC protocol is the b
 | 1 | Composite | `model/` | `MarkdownNode`, all node types | Markdown is a tree |
 | 2 | Factory | `parser/` | `NodeFactory` | Decouple parser from node constructors |
 | 3 | Strategy | `parser/`, `renderer/`, `config/` | `Parser`, `Renderer`, `KeyBindingScheme` | Pluggable algorithms |
-| 4 | Command | `command/` | `EditorCommand`, `CommandHistory` | Undo/redo requires reversible operations |
+| 4 | Command | `rpc/` | `DocumentHandler` edit dispatch | Each edit action is an isolated, named operation |
 | 5 | Visitor | `visitor/` | `NodeVisitor`, 5 concrete visitors | Extensible AST operations on sealed types |
 | 6 | Observer | `event/` | `EventBus`, `EventListener`, events | Decouple state changes from reactions |
-| 7 | State | `editor/` | `EditorMode`, 3 mode classes | Vim-like modes with different key behaviors |
+| 7 | State | `editor/` | `EditorMode`, `InsertMode` | Mode-specific key behavior via delegation |
 | 8 | Builder | `document/`, `config/` | `Document.Builder`, `EditorConfig.Builder` | Complex construction with defaults |
 | 9 | Decorator | `renderer/` | `StyleDecorator` | Composable rendering enhancements |
 | 10 | Adapter | `rpc/` | `DocumentHandler`, `EditorHandler` | JSON-RPC ↔ Java API boundary |
@@ -436,20 +421,19 @@ return switch (mode) {
 
 ### Generics with Bounded Type Parameters
 
-**Where:** `CommandHistory<T extends EditorCommand>`, `EventBus`, `EventListener<T extends Event>`
+**Where:** `EventBus`, `EventListener<T extends Event>`
 
 ```java
-public class CommandHistory<T extends EditorCommand> {
-    private final Deque<T> undoStack = new ArrayDeque<>();
-    // T is bounded -- only EditorCommand subtypes allowed
+public <T extends Event> void subscribe(Class<T> type, EventListener<T> listener) {
+    // Type-safe subscription: listener type matches event type at compile time
 }
 
-public <T extends Event> void subscribe(Class<T> type, EventListener<T> listener) {
-    // Type-safe subscription: listener type matches event type
+public <T extends Event> void publish(T event) {
+    // Type-safe dispatch: handlers receive exactly the event type they subscribed to
 }
 ```
 
-**Why:** Generics provide compile-time type safety for collections and callbacks. The bound `T extends EditorCommand` ensures the history only holds commands, not arbitrary objects. The EventBus uses generics with wildcards to maintain type safety across event types.
+**Why:** Generics provide compile-time type safety for callbacks. The bound `T extends Event` ensures subscribers only receive events they can handle. The EventBus uses generics with wildcards to maintain type safety across all event types without casting at the call site.
 
 ---
 
@@ -517,19 +501,19 @@ public enum NodeType {
 
 ### Optional
 
-**Where:** `CommandHistory.undo()`, `CommandHistory.redo()`
+**Where:** Document operations that may not find a result -- e.g., `DocumentManager.getActiveDocument()` when no file is open, or search returning no matches.
 
 ```java
-public Optional<T> undo() {
-    if (undoStack.isEmpty()) return Optional.empty();
-    T command = undoStack.pop();
-    command.undo();
-    redoStack.push(command);
-    return Optional.of(command);
+// Explicit "maybe nothing" instead of returning null
+public Optional<Document> getActiveDocument() {
+    return Optional.ofNullable(activeDocument);
 }
+
+// Caller is forced to handle the empty case
+manager.getActiveDocument().ifPresent(doc -> handler.handle(doc));
 ```
 
-**Why:** Returning `null` when there's nothing to undo is a bug magnet. `Optional<T>` makes the "maybe nothing" case explicit and forces callers to handle it.
+**Why:** `Optional<T>` makes nullable return types explicit and forces callers to handle the empty case, eliminating null pointer bugs at the call site.
 
 ---
 
@@ -543,22 +527,20 @@ public Optional<T> undo() {
 
 ### 2. Inheritance
 
-- `CharMedException` → `ParseException`, `RenderException`, `DocumentIOException`, `CommandExecutionException` -- exception hierarchy sharing common error code behavior.
+- `CharMedException` → `ParseException`, `RenderException`, `DocumentIOException` -- exception hierarchy sharing common error code behavior.
 - `StyleDecorator extends Object implements Renderer` -- decorators inherit the Renderer contract.
-- `Event` → `DocumentChangedEvent`, `CursorMovedEvent`, `ModeChangedEvent` -- event hierarchy sharing timestamp and source.
+- `Event` → `DocumentChangedEvent`, `CursorMovedEvent` -- event hierarchy sharing timestamp and source.
 
 ### 3. Polymorphism
 
 - `MarkdownNode` -- any node can be treated uniformly. `accept(visitor)` dispatches to the right `visit()` method via double dispatch.
 - `Renderer` -- `HtmlRenderer`, `PlainTextRenderer`, `AnsiRenderer` all implement `render()` differently.
-- `EditorMode` -- `NormalMode`, `InsertMode`, `CommandMode` all implement `handleKey()` differently.
-- `EditorCommand` -- `InsertTextCommand`, `DeleteTextCommand`, etc. all implement `execute()` and `undo()` differently.
+- `EditorMode` -- `InsertMode` implements `handleKey()` for insert behavior; the sealed interface makes the dispatch extensible.
 
 ### 4. Abstraction
 
 - `Parser` interface hides parsing implementation details -- callers only know `parse(String) → MarkdownNode`.
 - `Renderer` interface hides output format details -- callers only know `render(MarkdownNode) → String`.
-- `EditorCommand` interface hides mutation details -- the history only knows `execute()` and `undo()`.
 - `EventListener<T>` hides handler implementation -- the EventBus only knows `onEvent(T)`.
 
 ---
@@ -571,7 +553,7 @@ public Optional<T> undo() {
 | **O**pen/Closed | Open for extension via Visitor (add new AST operations), Strategy (add new renderers/parsers), Observer (add new event subscribers). Closed for modification -- none of these require changing existing classes. |
 | **L**iskov Substitution | Any `MarkdownNode` can be used where `MarkdownNode` is expected. Any `Renderer` can be used where `Renderer` is expected. Subtypes don't weaken preconditions or strengthen postconditions. |
 | **I**nterface Segregation | Small, focused interfaces: `Parser` (1 method), `Renderer` (1 method), `EditorCommand` (3 methods), `EventListener` (1 method), `RpcHandler` (1 method). No fat interfaces. |
-| **D**ependency Inversion | `Editor` depends on `EditorMode` (interface), not `NormalMode` (concrete). `CommandHistory` depends on `EditorCommand` (interface), not `InsertTextCommand` (concrete). High-level modules depend on abstractions. |
+| **D**ependency Inversion | `Editor` depends on `EditorMode` (interface), not `InsertMode` (concrete). `DocumentManager` depends on `Parser` (interface), not `MarkdownParser` (concrete). High-level modules depend on abstractions. |
 
 ---
 
