@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	gansi "github.com/charmbracelet/glamour/ansi"
 )
 
 // ContentRenderedMsg is sent when async Glamour rendering completes.
@@ -71,7 +72,7 @@ func glamourRender(markdown string, width int) (string, error) {
 		width = 80
 	}
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStylePath("dark"),
+		glamour.WithStyles(charmedStyle()),
 		glamour.WithWordWrap(width),
 	)
 	if err != nil {
@@ -82,6 +83,100 @@ func glamourRender(markdown string, width int) (string, error) {
 		return "", fmt.Errorf("render markdown: %w", err)
 	}
 	return strings.TrimSpace(out), nil
+}
+
+func boolPtr(b bool) *bool   { return &b }
+func strPtr(s string) *string { return &s }
+func uintPtr(n uint) *uint   { return &n }
+
+// charmedStyle returns a custom Glamour style using Catppuccin Mocha colors
+// with clean headings (no ## prefix).
+func charmedStyle() gansi.StyleConfig {
+	return gansi.StyleConfig{
+		Document: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				BlockPrefix: "\n",
+				BlockSuffix: "\n",
+			},
+		},
+		Heading: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Bold: boolPtr(true),
+			},
+		},
+		H1: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#cba6f7"),
+				Bold:  boolPtr(true),
+			},
+		},
+		H2: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#89b4fa"),
+				Bold:  boolPtr(true),
+			},
+		},
+		H3: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#94e2d5"),
+				Bold:  boolPtr(true),
+			},
+		},
+		H4: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#a6e3a1"),
+				Bold:  boolPtr(true),
+			},
+		},
+		H5: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#f9e2af"),
+				Bold:  boolPtr(true),
+			},
+		},
+		H6: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color: strPtr("#fab387"),
+				Bold:  boolPtr(true),
+			},
+		},
+		Strong: gansi.StylePrimitive{
+			Bold:  boolPtr(true),
+			Color: strPtr("#fab387"),
+		},
+		Emph: gansi.StylePrimitive{
+			Italic: boolPtr(true),
+			Color:  strPtr("#f9e2af"),
+		},
+		Code: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color:           strPtr("#a6e3a1"),
+				BackgroundColor: strPtr("#313244"),
+			},
+		},
+		Link: gansi.StylePrimitive{
+			Color:     strPtr("#89b4fa"),
+			Underline: boolPtr(true),
+		},
+		LinkText: gansi.StylePrimitive{
+			Color: strPtr("#cba6f7"),
+			Bold:  boolPtr(true),
+		},
+		Item: gansi.StylePrimitive{
+			BlockPrefix: "• ",
+		},
+		BlockQuote: gansi.StyleBlock{
+			StylePrimitive: gansi.StylePrimitive{
+				Color:  strPtr("#7f849c"),
+				Italic: boolPtr(true),
+			},
+			Indent: uintPtr(1),
+		},
+		HorizontalRule: gansi.StylePrimitive{
+			Color:  strPtr("#585b70"),
+			Format: "\n─────────────────────\n",
+		},
+	}
 }
 
 // ApplyRendered sets the rendered content in the viewport.
