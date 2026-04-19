@@ -165,6 +165,9 @@ func charmedStyle() gansi.StyleConfig {
 		Item: gansi.StylePrimitive{
 			BlockPrefix: "• ",
 		},
+		Enumeration: gansi.StylePrimitive{
+			BlockPrefix: ". ",
+		},
 		BlockQuote: gansi.StyleBlock{
 			StylePrimitive: gansi.StylePrimitive{
 				Color:  strPtr("#7f849c"),
